@@ -10,6 +10,6 @@ while True:
 		'id': id,
 		'name': input('Название: '),
 		'geo': input('Расположение: '),
-		'free': True,
+		'group': 0,
 	}
 	db['stations'].insert_one(station)
