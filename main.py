@@ -14,7 +14,10 @@ def write(user):
 		else:
 			text += 'Групп нет!'
 
-		keyboards = keyboard([['Обновить информацию'], ['Следующая группа']])
+		re = [['Обновить информацию']]
+		if station['group']:
+			re.append(['Следующая группа'])
+		keyboards = keyboard(re)
 	else:
 		group = db['groups'].find_one({'id': user['group']})
 
@@ -22,7 +25,7 @@ def write(user):
 
 		if group['now']:
 			station = db['stations'].find_one({'id': group['now']})
-			text += 'Текущая станция: %s' % station
+			text += 'Текущая станция: %s' % station['name']
 		else:
 			text += 'Текущей станции нет'
 
@@ -41,7 +44,12 @@ def next_station(group, station=None):
 		db['groups'].save(group)
 
 		for i in db['users'].find({'station': station}):
-			message(i)
+			write(i)
+
+	if group['now']:
+		for i in db['stations'].find({'id': group['station']}):
+			i['group'] = 0
+			db['stations'].save(i)
 
 	all = True
 	yes = True
@@ -53,10 +61,10 @@ def next_station(group, station=None):
 				db['stations'].save(i)
 
 				group['now'] = i['id']
-				db['groups'].save(i)
+				db['groups'].save(group)
 
-				for i in db['users'].find({'group': group['id']}):
-					write(i)
+				for j in db['users'].find({'group': group['id']}):
+					write(j)
 
 				yes = False
 				break
@@ -106,38 +114,45 @@ def handler_org(message):
 	if lock:
 		bot.send_message(message.chat.id, 'Регистрация закрыта!')
 	else:
-		params = message.text.split()
+		try:
+			station = int(message.text.split()[1])
+		except:
+			bot.send_message(message.chat.id, 'Неправильный формат!')
+		else:
+			user = db['users'].find_one({'id': message.chat.id})	
+			if not user:
+				user = {
+					'id': message.chat.id,
+				}
+			user['type'] = 1
+			user['station'] = station
+			db['users'].save(user)
 
-		user = db['users'].find_one({'id': message.chat.id})	
-		if not user:
-			user = {
-				'id': message.chat.id,
-			}
-		user['type'] = 1
-		user['station'] = params[1]
-		db['users'].save(user)
-
-		bot.send_message(message.chat.id, 'Организатор зарегистрирован!')
+			bot.send_message(message.chat.id, 'Организатор зарегистрирован!')
 
 # Добавление участника
 @bot.message_handler(commands=['reguser'])
 def handler_user(message):
-	group = int(message.text.split()[1])
-
-	x = db['groups'].find_one({'id': group})
-	if not x:
-		bot.send_message(message.chat.id, 'Неправильный номер группы!')
+	try:
+		group = int(message.text.split()[1])
+	except:
+		bot.send_message(message.chat.id, 'Неправильный формат!')
 	else:
-		user = db['users'].find_one({'id': message.chat.id})
-		if not user:
-			user = {
-				'id': message.chat.id,
-			}
-		user['type'] = 0
-		user['group'] = group
-		db['users'].save(user)
+		x = db['groups'].find_one({'id': group})
 
-		write(user)
+		if not x:
+			bot.send_message(message.chat.id, 'Неправильный номер группы!')
+		else:
+			user = db['users'].find_one({'id': message.chat.id})
+			if not user:
+				user = {
+					'id': message.chat.id,
+				}
+			user['type'] = 0
+			user['group'] = group
+			db['users'].save(user)
+
+			write(user)
 
 # Остановка регистрации организаторов
 @bot.message_handler(commands=['stop'])
@@ -171,8 +186,12 @@ def handle_message(message):
 			# Организатор закончил квест
 			if mes == 'Следующая группа':
 				station = db['stations'].find_one({'id': user['station']})
-				group = db['groups'].find_one({'id': station['group']})
-				next_station(group, station['id'])
+
+				if station['group']:
+					group = db['groups'].find_one({'id': station['group']})
+					next_station(group, station['id'])
+				else:
+					bot.send_message(message.chat.id, 'У Вас сейчас нет группы!')
 
 			# Организатор начислил / списал баллы
 			elif mes.isdigit():
