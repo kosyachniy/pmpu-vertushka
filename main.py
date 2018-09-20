@@ -4,7 +4,7 @@ import urllib, time
 import random
 
 
-def write(user):
+def write(user, check=True):
 	free = False
 
 	if user['type']:
@@ -40,7 +40,7 @@ def write(user):
 
 	bot.send_message(user['id'], text, reply_markup=keyboards)
 
-	if free:
+	if free and check:
 		tim = db['sets'].find_one({'name': 'time'})['cont']
 		if tim:
 			group = db['groups'].find_one({'id': user['group']})
@@ -57,7 +57,7 @@ def next_station(group, station=None, messages=True):
 		db['groups'].save(group)
 
 		for i in db['users'].find({'station': station}):
-			write(i)
+			write(i, False)
 
 	if group['now']:
 		for i in db['stations'].find({'id': group['now']}):
@@ -80,10 +80,10 @@ def next_station(group, station=None, messages=True):
 					db['groups'].save(group)
 
 					for j in db['users'].find({'group': group['id']}):
-						write(j)
+						write(j, False)
 
 					for j in db['users'].find({'type': 1, 'station': i['id']}):
-						write(j)
+						write(j, False)
 
 					yes = False
 					break
@@ -105,20 +105,20 @@ def next_station(group, station=None, messages=True):
 			bot.send_message(j['id'], 'Время вышло!')
 
 
-db['sets'].remove()
-db['sets'].insert_one({'name': 'lock', 'cont': False})
-db['sets'].insert_one({'name': 'begin', 'cont': False})
-db['sets'].insert_one({'name': 'time', 'cont': True})
+# db['sets'].remove()
+# db['sets'].insert_one({'name': 'lock', 'cont': False})
+# db['sets'].insert_one({'name': 'begin', 'cont': False})
+# db['sets'].insert_one({'name': 'time', 'cont': True})
 
-for i in db['groups'].find():
-	i['stations'] = []
-	i['now'] = 0
-	i['balls'] = []
-	db['groups'].save(i)
+# for i in db['groups'].find():
+# 	i['stations'] = []
+# 	i['now'] = 0
+# 	i['balls'] = []
+# 	db['groups'].save(i)
 
-for i in db['stations'].find():
-	i['group'] = 0
-	db['stations'].save(i)
+# for i in db['stations'].find():
+# 	i['group'] = 0
+# 	db['stations'].save(i)
 
 
 # Приветствие
