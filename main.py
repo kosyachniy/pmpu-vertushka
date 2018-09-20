@@ -5,6 +5,8 @@ import random
 
 
 def write(user):
+	free = False
+
 	if user['type']:
 		station = db['stations'].find_one({'id': user['station']})
 
@@ -32,10 +34,17 @@ def write(user):
 			text += 'Текущая станция: %s\n%s' % (station['name'], station['geo'])
 		else:
 			text += 'Текущей станции нет'
+			free = True
 
 		keyboards = keyboard([['Обновить информацию']])
 
 	bot.send_message(user['id'], text, reply_markup=keyboards)
+
+	if free:
+		tim = db['sets'].find_one({'name': 'time'})['cont']
+		if tim:
+			group = db['groups'].find_one({'id': user['group']})
+			next_station(group, messages=False)
 
 def next_station(group, station=None, messages=True):
 	if station:
@@ -55,45 +64,51 @@ def next_station(group, station=None, messages=True):
 			i['group'] = 0
 			db['stations'].save(i)
 
-	sta = [i for i in db['stations'].find({'id': {'$nin': group['stations']}})]
-	if len(sta):
-		random.shuffle(sta)
+	tim = db['sets'].find_one({'name': 'time'})['cont']
+	if tim:
+		sta = [i for i in db['stations'].find({'id': {'$nin': group['stations']}})]
+		if len(sta):
+			random.shuffle(sta)
 
-		yes = True
-		for i in sta:
-			if not i['group']:
-				i['group'] = group['id']
-				db['stations'].save(i)
+			yes = True
+			for i in sta:
+				if not i['group']:
+					i['group'] = group['id']
+					db['stations'].save(i)
 
-				group['now'] = i['id']
-				db['groups'].save(group)
+					group['now'] = i['id']
+					db['groups'].save(group)
 
-				for j in db['users'].find({'group': group['id']}):
-					write(j)
+					for j in db['users'].find({'group': group['id']}):
+						write(j)
 
-				for j in db['users'].find({'type': 1, 'station': i['id']}):
-					write(j)
+					for j in db['users'].find({'type': 1, 'station': i['id']}):
+						write(j)
 
-				yes = False
-				break
+					yes = False
+					break
 
-		if yes and messages:
+			if yes and messages:
+					for i in db['users'].find({'group': group['id']}):
+						bot.send_message(i['id'], 'На данный момент нет свободных станций!')
+		else:
+			if messages:
 				for i in db['users'].find({'group': group['id']}):
-					bot.send_message(i['id'], 'На данный момент нет свободных станций!')
-	else:
-		if messages:
-			for i in db['users'].find({'group': group['id']}):
-				bot.send_message(i['id'], 'Вы прошли все станции!')
+					bot.send_message(i['id'], 'Вы прошли все станции!')
 
-	if not messages:
-		# Если есть команды, которым пока некуда идти
-		for i in db['groups'].find({'now': 0}):
-			next_station(i, messages=False)
+		if not messages:
+			# Если есть команды, которым пока некуда идти
+			for i in db['groups'].find({'now': 0}):
+				next_station(i, messages=False)
+	else:
+		for j in db['users'].find({'group': group['id']}):
+			bot.send_message(j['id'], 'Время вышло!')
 
 
 db['sets'].remove()
 db['sets'].insert_one({'name': 'lock', 'cont': False})
 db['sets'].insert_one({'name': 'begin', 'cont': False})
+db['sets'].insert_one({'name': 'time', 'cont': True})
 
 for i in db['groups'].find():
 	i['stations'] = []
@@ -199,8 +214,12 @@ def handler_begin(message):
 # Вышло время
 @bot.message_handler(commands=['time'])
 def handler_time(message):
+	x = db['sets'].find_one({'name': 'time'})
+	x['cont'] = False
+	db['sets'].save(x)
+
 	for i in db['users'].find():
-		bot.send_message(message.chat.id, 'Время вышло, поздравляем, квест окончен! Иди подкрепись и приходи на гала концерт в НИИ!')
+		bot.send_message(i['id'], 'Время вышло, поздравляем, квест окончен! Иди подкрепись и приходи на гала концерт в НИИ!')
 
 # Статистика
 @bot.message_handler(commands=['stats'])
